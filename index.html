@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuorumVote | Polls where GenLayer validators grade every answer</title>
+<meta name="description" content="Ask a question and set a rubric. People answer in their own words; GenLayer validators grade each answer against the rubric, and only answers that pass are counted. Every verdict is backed by a quote from the answer.">
+<style>
+:root{--bg:#0b0b0e;--card:#14141a;--line:#2a2a34;--fg:#f1f1f4;--mute:#9a9aa8;--acc:#a78bfa;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171}
+@media (prefers-color-scheme: light){:root{--bg:#f6f6f9;--card:#fff;--line:#dcdce6;--fg:#15151c;--mute:#5d5d6d;--acc:#6d4fe0;--ok:#16a34a;--warn:#b45309;--bad:#dc2626}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+h1{font-size:26px;margin:0}
+h2{font-size:17px;margin:0 0 12px}
+.sub{color:var(--mute);margin:4px 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+label{display:block;font-size:12px;color:var(--mute);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{width:100%;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+button{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.grow{flex:1 1 220px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all}
+.mute{color:var(--mute)}
+.chip{display:inline-block;padding:2px 10px;border-radius:99px;border:1px solid var(--line);font-size:12px;font-weight:600}
+.chip.PENDING{color:var(--warn);border-color:var(--warn)}.chip.PASS{color:var(--ok);border-color:var(--ok)}.chip.FAIL{color:var(--bad);border-color:var(--bad)}.chip.CLOSED{color:var(--mute)}.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;display:flex;margin:6px 0}.bar i{display:block;height:100%}.ans{border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}.ans.PASS{border-color:var(--ok)}.ans.FAIL{border-color:var(--bad)}.chip.CHECKED{color:var(--ok);border-color:var(--ok)}.chip.UNREACHABLE{color:var(--bad)}.chip.SUPPORTED{color:var(--ok);border-color:var(--ok)}.chip.CONTRADICTED{color:var(--bad);border-color:var(--bad)}.chip.NOT_FOUND{color:var(--warn);border-color:var(--warn)}.chip.INTACT{color:var(--ok);border-color:var(--ok)}.chip.CHANGED{color:var(--bad);border-color:var(--bad)}.chip.RETIRED{color:var(--mute)}.chip.OPEN{color:var(--warn);border-color:var(--warn)}.chip.HIT{color:var(--ok);border-color:var(--ok)}.chip.MISS{color:var(--bad);border-color:var(--bad)}.chip.KEPT{color:var(--ok);border-color:var(--ok)}.chip.BROKEN{color:var(--bad);border-color:var(--bad)}.chip.NOT_YET{color:var(--warn)}.chip.MIXED{color:var(--warn);border-color:var(--warn)}
+.src{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+.chip.ok{color:var(--ok);border-color:var(--ok)}
+.item{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;cursor:pointer}
+.item.sel{border-color:var(--acc)}
+textarea{resize:vertical;min-height:84px}
+.quote{border-left:3px solid var(--acc);padding:8px 12px;margin:6px 0;background:rgba(167,139,250,.07);border-radius:0 8px 8px 0;font-style:italic}
+.codebox{display:flex;gap:10px;align-items:center;border:1px dashed var(--acc);border-radius:10px;padding:10px 12px;margin:6px 0}
+.codebox .mono{font-size:15px;font-weight:700;flex:1}
+.tx{border-left:3px solid var(--acc);padding:6px 12px;margin:8px 0;background:rgba(167,139,250,.07);border-radius:0 8px 8px 0}
+.err{color:var(--bad)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tabs button{background:transparent;border:1px solid var(--line);color:var(--fg)}
+.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+ol.how{margin:8px 0 0 18px;padding:0}
+ol.how li{margin:4px 0}
+small{color:var(--mute)}
+.big{font-size:22px;font-weight:800}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🗳️ QuorumVote</h1>
+    <div class="chip">GenLayer Studio network</div>
+  </header>
+  <p class="sub">A poll where answers have to earn their vote. Ask a question and write the <b>rubric</b> an answer must meet. People answer in their own words. <b>Validators grade each answer</b> against the rubric, and a verdict is only accepted with a quote that really appears in the answer. The tally counts <b>passing answers only</b>.</p>
+
+  <div class="card" id="boot">Loading GenLayer SDK…</div>
+
+  <div id="app" hidden>
+    <div class="card">
+      <h2>1. Contract and identity</h2>
+      <label>QuorumVote contract address</label>
+      <input id="contract" spellcheck="false">
+      <div class="row" style="margin-top:12px">
+        <div class="grow">
+          <label>Acting as</label>
+          <select id="who"><option value="A">Account A</option><option value="B">Account B</option></select>
+        </div>
+        <button class="ghost" id="newkeys">Reset demo accounts</button>
+      </div>
+      <p class="mono" style="margin:10px 0 0">A: <span id="addrA"></span></p>
+      <p class="mono" style="margin:2px 0 0">B: <span id="addrB"></span></p>
+      <small><b>Scope:</b> this is a GenLayer <b>Studio test-network demo</b>. It uses throwaway demo accounts on purpose (no wallet, no funds, nothing to recover), so anyone can try it in two minutes. Each account may answer a poll once. Anyone can ask validators to grade an answer. A PASS or FAIL is final.</small>
+    </div>
+
+    <div class="tabs">
+      <button class="on" data-tab="board">All polls</button>
+      <button data-tab="mine">My polls</button>
+      <button data-tab="new">New poll</button>
+    </div>
+
+    <div id="tab-board">
+      <div class="card">
+        <div class="row"><h2 style="margin:0" class="grow">Latest polls from everyone</h2><button class="ghost" id="reloadBoard">Reload</button></div>
+        <p class="mute" style="margin:8px 0 0"><small>Click a poll to read the rubric, see every answer with its verdict, answer it, or grade an answer.</small></p>
+        <div id="board" class="mute" style="margin-top:12px">Loading…</div>
+      </div>
+      <div class="card" id="detailBoard" hidden></div>
+    </div>
+
+    <div id="tab-mine" hidden>
+      <div class="card">
+        <div class="row"><h2 style="margin:0" class="grow">Polls created by the selected account</h2><button class="ghost" id="reload">Reload</button></div>
+        <div id="list" class="mute" style="margin-top:12px">No polls loaded yet.</div>
+      </div>
+      <div class="card" id="detail" hidden></div>
+    </div>
+
+    <div id="tab-new" hidden>
+      <div class="card">
+        <h2>Create a poll</h2>
+        <label>Question (8 to 200 characters)</label>
+        <input id="f_q" maxlength="200" placeholder="How should a DAO treasury reduce the risk of one wallet draining it?">
+        <label>Rubric: what a passing answer must do (8 to 300 characters)</label>
+        <input id="f_r" maxlength="300" placeholder="Pass only if the answer names a concrete safeguard such as multisig, spending limits, timelock or audits.">
+        <p class="mute" style="margin:10px 0 0"><small>The question and rubric are fixed once published. Up to 20 answers per poll. An answer that the model grades without a real quote from the answer stays <b>PENDING</b> and can be graded again (3 tries per answer).</small></p>
+        <div class="row" style="margin-top:14px"><button id="newBtn">Publish poll</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Transaction log</h2>
+      <div id="txlog" class="mute">Nothing sent yet.</div>
+    </div>
+  </div>
+  <p class="mute" style="text-align:center"><small>Built on GenLayer Intelligent Contracts · <a href="https://github.com/Obitotobi1/quorumvote">source on GitHub</a></small></p>
+</div>
+
+<script type="module">
+const DEFAULT_CONTRACT = "0x88E5eD7BcA3f474449AeB723711c99fc03347A0d";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch {} }
+};
+
+async function loadSdk() {
+  const tries = [
+    async () => [await import("https://esm.sh/genlayer-js"), await import("https://esm.sh/genlayer-js/chains")],
+    async () => [await import("https://cdn.jsdelivr.net/npm/genlayer-js/+esm"), await import("https://cdn.jsdelivr.net/npm/genlayer-js/chains/+esm")],
+  ];
+  let last;
+  for (const t of tries) { try { return await t(); } catch (e) { last = e; } }
+  throw last;
+}
+
+let sdk, chains, client, accounts = {}, current = "A", selected = null;
+
+function keyFor(slot) {
+  let k = store.get("qv_key_" + slot);
+  if (!k) { k = sdk.generatePrivateKey(); store.set("qv_key_" + slot, k); }
+  return k;
+}
+function makeClient() { client = sdk.createClient({ chain: chains.studionet, account: accounts[current] }); }
+const addr = () => $("contract").value.trim();
+
+function logTx(id, html, cls = "") {
+  const log = $("txlog");
+  if (log.classList.contains("mute")) { log.classList.remove("mute"); log.innerHTML = ""; }
+  let el = document.getElementById("tx_" + id);
+  if (!el) { el = document.createElement("div"); el.id = "tx_" + id; el.className = "tx"; log.prepend(el); }
+  el.className = "tx " + cls;
+  el.innerHTML = html;
+}
+
+// ---- Outcome classification: success is a WHITELIST. Anything else is shown under its real name. ----
+const OK_STATUS = ["ACCEPTED", "FINALIZED"];
+const BAD_RESULT = /DISAGREE|TIMEOUT|NO_MAJORITY|VIOLATION|UNDETERMINED|CANCEL|REJECT|ERROR|FAIL|REVERT|ROLLBACK/i;
+const up = (x) => (typeof x === "string" ? x.toUpperCase() : "");
+
+// Returns { ok, label, detail }. ok is true ONLY when the network reports an accepted/finalized
+// status, no failure signal, and the on-chain record really changed.
+function classifyOutcome(rcpt, changed) {
+  const status = up(rcpt?.statusName) || up(rcpt?.status_name);
+  const results = [rcpt?.resultName, rcpt?.result_name, rcpt?.txExecutionResultName, rcpt?.data?.execution_result].map(up).filter(Boolean);
+  const bad = results.find((x) => BAD_RESULT.test(x));
+  if (status && !OK_STATUS.includes(status)) {
+    const names = { UNDETERMINED: "Undetermined: validators could not reach a decision", CANCELED: "Canceled", LEADER_TIMEOUT: "Timeout: the leader did not answer in time", VALIDATORS_TIMEOUT: "Timeout: validators did not answer in time" };
+    return { ok: false, label: names[status] || ("Not accepted: status " + status), detail: "No result was stored. The record on-chain is unchanged." };
+  }
+  if (bad) {
+    const names = { DISAGREE: "Validators disagreed", MAJORITY_DISAGREE: "Validators disagreed", NO_MAJORITY: "No majority among validators" };
+    const k = Object.keys(names).find((n) => bad.includes(n));
+    return { ok: false, label: k ? names[k] : ("Not successful: " + bad), detail: "No result was stored. The record on-chain is unchanged." };
+  }
+  if (changed === false) return { ok: false, label: "Ran, but no change was stored", detail: "The record is identical before and after. Validators may not have agreed, or the page could not be read. Try again." };
+  if (changed === null) return { ok: false, label: "Outcome could not be verified", detail: "The network did not confirm an accepted result and the record could not be read back. Check the transaction in the Explorer before relying on it." };
+  if (!status) return { ok: false, label: "Not confirmed: the network reported no status", detail: "A receipt with no ACCEPTED or FINALIZED status is never treated as a success, even if the record seems to have changed. Check the transaction in the Explorer before relying on it." };
+  return { ok: true, label: status === "FINALIZED" ? "Finalized" : "Accepted by validator consensus", detail: "" };
+}
+
+// Stages shown as separate lines: Submitted, Outcome (from the classification), Finality.
+async function send(label, functionName, args, note, probe) {
+  const id = Date.now() + Math.random().toString(16).slice(2, 6);
+  const head = `<b>${esc(label)}</b><br>`;
+  const line = (ok, text) => `<div>${ok === true ? "<span style='color:var(--ok)'>✔</span>" : ok === false ? "<span class='err'>✖</span>" : "<span class='mute'>…</span>"} ${text}</div>`;
+  const read = async () => { if (!probe) return undefined; try { return JSON.stringify(await probe()); } catch { return null; } };
+  try {
+    const before = await read();
+    logTx(id, head + line(null, "Signing and submitting…"));
+    const hash = await client.writeContract({ address: addr(), functionName, args, value: 0n });
+    const h = `<span class="mono">${esc(hash)}</span>`;
+    logTx(id, head + h + line(true, "Submitted") + line(null, note || "Waiting for validators to reach consensus…"));
+    let rcpt;
+    try {
+      rcpt = await client.waitForTransactionReceipt({ hash, status: "ACCEPTED", retries: 120, interval: 3000 });
+    } catch (e) {
+      logTx(id, head + h + line(true, "Submitted") + line(false, "<b>Timed out waiting for the network.</b> Nothing is confirmed. The transaction may still complete: reload and check, or look it up in the Explorer.") , "err");
+      return false;
+    }
+    const after = await read();
+    const changed = probe ? (before === null || after === null ? null : before !== after) : null;
+    const out = classifyOutcome(rcpt, changed);
+    logTx(id, head + h + line(true, "Submitted") + line(out.ok, `<b>${esc(out.label)}</b>`) + (out.detail ? `<div class="mute"><small>${esc(out.detail)}</small></div>` : "") + (out.ok ? line(null, "Waiting for finality (it can still be appealed until then)…") : ""), out.ok ? "" : "err");
+    await refresh();
+    if (!out.ok) return false;
+    client.waitForTransactionReceipt({ hash, status: "FINALIZED", retries: 200, interval: 5000 })
+      .then(async (fin) => {
+        const f = classifyOutcome(fin, changed);
+        const finalStatus = up(fin?.statusName) || up(fin?.status_name);
+        const reallyFinal = finalStatus === "FINALIZED";
+        logTx(id, head + h + line(true, "Submitted") + line(f.ok, `<b>${esc(f.ok ? out.label : f.label)}</b>`) + (reallyFinal && f.ok ? line(true, "<b>Finalized</b>: this result is now permanent.") : line(f.ok ? null : false, f.ok ? "Finality not confirmed by the network yet." : esc(f.detail || "The final result is not a success."))), f.ok ? "" : "err");
+        refresh();
+      })
+      .catch(() => logTx(id, head + h + line(true, "Submitted") + line(out.ok, `<b>${esc(out.label)}</b>`) + line(null, "Finality is still pending. Check again later.")));
+    return true;
+  } catch (e) {
+    logTx(id, head + `<span class="err">Failed before it reached the chain: ${esc(e?.shortMessage || e?.message || e)}</span>`, "err");
+    return false;
+  }
+}
+
+async function read(fn, args) { return client.readContract({ address: addr(), functionName: fn, args }); }
+async function readJson(fn, args) {
+  const raw = await read(fn, args);
+  return JSON.parse(typeof raw === "string" ? raw : JSON.stringify(raw));
+}
+
+
+let boardSel = null;
+const lc = (s) => String(s || "").toLowerCase();
+const me = () => lc(accounts[current].address);
+
+function card(p, onBoard) {
+  return `
+    <div class="item ${(onBoard ? boardSel : selected) === p.id ? "sel" : ""}" data-id="${p.id}">
+      <div class="row"><b class="grow">#${p.id}</b><span class="chip ${esc(p.status)}">${esc(p.status)}</span><span class="chip">${esc(p.answers)} answer${p.answers === 1 ? "" : "s"}</span></div>
+      <div>${esc(p.question)}</div>
+    </div>`;
+}
+
+async function refreshBoard() {
+  const box = $("board");
+  box.innerHTML = "Loading…";
+  let items = [];
+  try { items = await readJson("get_recent", [20]); }
+  catch (e) { box.innerHTML = `<span class="err">${esc(e?.message || e)}</span>`; return; }
+  if (!items.length) { box.innerHTML = "No polls yet. Make one on the <b>New poll</b> tab."; $("detailBoard").hidden = true; return; }
+  box.innerHTML = items.map((p) => card(p, true)).join("");
+  box.querySelectorAll(".item").forEach((el) => el.onclick = () => { boardSel = Number(el.dataset.id); refreshBoard(); });
+  if (boardSel && items.some((p) => p.id === boardSel)) renderDetail(await readJson("get_poll", [boardSel]), $("detailBoard"));
+  else $("detailBoard").hidden = true;
+}
+
+async function refresh() {
+  const box = $("list");
+  box.innerHTML = "Loading…";
+  let items = [];
+  try { items = await readJson("get_polls_by_owner", [accounts[current].address]); }
+  catch (e) { box.innerHTML = `<span class="err">${esc(e?.message || e)}</span>`; return; }
+  if (!items.length) { box.innerHTML = "No polls yet for this account. Use the <b>New poll</b> tab."; $("detail").hidden = true; refreshBoard(); return; }
+  box.innerHTML = items.slice().reverse().map((p) => card(p, false)).join("");
+  box.querySelectorAll(".item").forEach((el) => el.onclick = () => { selected = Number(el.dataset.id); refresh(); });
+  if (selected && items.some((p) => p.id === selected)) renderDetail(await readJson("get_poll", [selected]), $("detail"));
+  else $("detail").hidden = true;
+  refreshBoard();
+}
+
+// Every write is verified by reading the record back: success needs a real, stored change.
+const normTxt = (x) => String(x || "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+const probeCreate = (q) => async () => {
+  const list = await readJson("get_polls_by_owner", [accounts[current].address]);
+  return { n: list.length, stored: list.some((p) => normTxt(p.question) === normTxt(q)) };
+};
+const probeAnswer = (id) => async () => {
+  const p = await readJson("get_poll", [id]);
+  return { n: p.answers.length, mine: p.answers.some((a) => lc(a.author) === me()) };
+};
+const probeGrade = (id, i) => async () => {
+  const p = await readJson("get_poll", [id]);
+  const a = p.answers[i] || {};
+  return { status: a.status, attempts: a.attempts, quote: a.quote };
+};
+const probeClose = (id) => async () => { const p = await readJson("get_poll", [id]); return { status: p.status }; };
+
+async function renderDetail(p, d) {
+  d.hidden = false;
+  let t = null;
+  try { t = await readJson("get_tally", [p.id]); } catch {}
+  const total = p.answers.length;
+  const pct = (n) => total ? (100 * n / total).toFixed(1) : 0;
+  const iAnswered = p.answers.some((a) => lc(a.author) === me());
+  const iOwn = lc(p.owner) === me();
+  const answers = p.answers.map((a, i) => `
+    <div class="ans ${esc(a.status)}">
+      <div class="row"><b class="grow">Answer ${i + 1}</b><span class="chip ${esc(a.status)}">${esc(a.status)}</span></div>
+      <div>${esc(a.text)}</div>
+      <small class="mute">by ${esc(a.author.slice(0, 8))}…${esc(a.author.slice(-4))}${lc(a.author) === me() ? " (you)" : ""} · grading tries used: ${esc(a.attempts)} of 3</small>
+      ${a.quote ? `<div class="quote">${esc(a.quote)}</div><small class="mute">Quote the validators relied on, found word for word in the answer.</small>` : ""}
+      ${a.status === "PENDING" ? `<p class="mute" style="margin:6px 0"><small>${a.attempts ? "The last grading attempt was inconclusive (no verifiable quote). It stays pending and can be graded again." : "Not graded yet."}</small></p>
+        ${a.attempts < 3 ? `<button class="ghost" data-grade="${i}">Ask validators to grade</button>` : `<small class="mute">This answer reached its grading limit.</small>`}` : `<small class="mute">Graded answers are final.</small>`}
+    </div>`).join("");
+  d.innerHTML = `
+    <div class="row"><h2 style="margin:0" class="grow">Poll #${esc(p.id)}</h2><span class="chip ${esc(p.status)}">${esc(p.status)}</span></div>
+    <label>Question</label><div class="quote">${esc(p.question)}</div>
+    <label>Rubric: a passing answer must</label><div>${esc(p.rubric)}</div>
+    <small>Created by ${esc(p.owner.slice(0, 8))}…${esc(p.owner.slice(-4))}${iOwn ? " (you)" : ""}</small>
+    ${t ? `<label>Tally (graded answers only)</label>
+      <div class="bar"><i style="width:${pct(t.passed)}%;background:var(--ok)"></i><i style="width:${pct(t.failed)}%;background:var(--bad)"></i><i style="width:${pct(t.pending)}%;background:var(--warn)"></i></div>
+      <div><span class="big" style="color:var(--ok)">${esc(t.passed)}</span> passed · <b style="color:var(--bad)">${esc(t.failed)}</b> failed · <b style="color:var(--warn)">${esc(t.pending)}</b> not graded yet · ${esc(t.total)} total</div>
+      <small class="mute">Read from any contract with <span class="mono">get_tally(poll_id)</span> or <span class="mono">passed_count(poll_id)</span>.</small>` : ""}
+    <label>Answers</label>
+    ${answers || `<p class="mute">No answers yet.</p>`}
+    ${p.status === "OPEN" && !iAnswered && total < 20 ? `
+      <label>Your answer (8 to 400 characters, one per account)</label>
+      <textarea id="ans_text" maxlength="400" placeholder="Write your answer in your own words"></textarea>
+      <div class="row" style="margin-top:10px"><button id="ansBtn">Submit answer</button></div>` : ""}
+    ${p.status === "OPEN" && iAnswered ? `<p class="mute"><small>This account already answered. Switch account above to answer as someone else.</small></p>` : ""}
+    ${p.status === "OPEN" && total >= 20 ? `<p class="mute"><small>This poll is full (20 answers).</small></p>` : ""}
+    ${p.status === "CLOSED" ? `<p class="mute"><small>This poll is closed. No new answers are accepted; pending answers can still be graded.</small></p>` : ""}
+    ${p.status === "OPEN" && iOwn ? `<div class="row" style="margin-top:14px"><button class="danger" id="closeBtn">Close poll</button></div>` : ""}`;
+  d.querySelectorAll("[data-grade]").forEach((b) => b.onclick = () => {
+    const i = Number(b.dataset.grade);
+    send(`Grade answer ${i + 1} of poll #${p.id}`, "evaluate", [p.id, i], "Validators are each grading the answer against the rubric and agreeing on a verdict. This can take a minute or two.", probeGrade(p.id, i)).then(() => refresh());
+  });
+  const ab = d.querySelector("#ansBtn");
+  if (ab) ab.onclick = async () => {
+    const text = d.querySelector("#ans_text").value.trim().replace(/\s+/g, " ");
+    if (text.length < 8 || text.length > 400) { alert("The answer must be 8 to 400 characters."); return; }
+    await send(`Answer poll #${p.id}`, "submit_answer", [p.id, text], "Recording the answer on-chain, then reading the poll back to confirm it was stored…", probeAnswer(p.id));
+    refresh();
+  };
+  const cb = d.querySelector("#closeBtn");
+  if (cb) cb.onclick = () => { if (confirm("Close this poll? No more answers will be accepted.")) send(`Close poll #${p.id}`, "close_poll", [p.id], "Closing the poll, then reading it back…", probeClose(p.id)).then(() => refresh()); };
+}
+
+function bind() {
+  document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+    for (const t of ["board", "mine", "new"]) $("tab-" + t).hidden = t !== b.dataset.tab;
+  });
+  $("contract").value = store.get("qv_contract_v1") || DEFAULT_CONTRACT;
+  $("contract").onchange = () => { store.set("qv_contract_v1", addr()); selected = null; boardSel = null; refresh(); };
+  $("who").onchange = () => { current = $("who").value; selected = null; makeClient(); refresh(); };
+  $("reload").onclick = refresh;
+  $("reloadBoard").onclick = refreshBoard;
+  $("newkeys").onclick = () => { if (confirm("Generate new demo accounts? The old ones are lost.")) { store.set("qv_key_A", ""); store.set("qv_key_B", ""); location.reload(); } };
+  $("newBtn").onclick = async () => {
+    const t = (id) => $(id).value.trim().replace(/\s+/g, " ");
+    const q = t("f_q"), r = t("f_r");
+    if (q.length < 8 || q.length > 200) { alert("The question must be 8 to 200 characters."); return; }
+    if (r.length < 8 || r.length > 300) { alert("The rubric must be 8 to 300 characters."); return; }
+    const ok = await send("Publish poll", "create_poll", [q, r], "Recording the poll on-chain, then reading it back to confirm it was stored…", probeCreate(q));
+    if (ok) { ["f_q", "f_r"].forEach((i) => $(i).value = ""); document.querySelector('[data-tab="mine"]').click(); }
+  };
+}
+
+(async () => {
+  try {
+    const [a, b] = await loadSdk();
+    sdk = a; chains = b;
+    for (const s of ["A", "B"]) accounts[s] = sdk.createAccount(keyFor(s));
+    $("addrA").textContent = accounts.A.address;
+    $("addrB").textContent = accounts.B.address;
+    makeClient(); bind();
+    $("boot").hidden = true; $("app").hidden = false;
+    refresh();
+  } catch (e) {
+    $("boot").innerHTML = `<span class="err">Could not load the GenLayer SDK: ${esc(e?.message || e)}</span><br><small>Check your connection and reload.</small>`;
+  }
+})();
+</script>
+</body>
+</html>
