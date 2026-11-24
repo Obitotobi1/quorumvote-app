@@ -129,8 +129,9 @@ const store = {
 
 async function loadSdk() {
   const tries = [
+    async () => [await import("https://esm.sh/genlayer-js@^2.0.0-rc.3"), await import("https://esm.sh/genlayer-js@^2.0.0-rc.3/chains")],
+    async () => [await import("https://cdn.jsdelivr.net/npm/genlayer-js@2/+esm"), await import("https://cdn.jsdelivr.net/npm/genlayer-js@2/chains/+esm")],
     async () => [await import("https://esm.sh/genlayer-js"), await import("https://esm.sh/genlayer-js/chains")],
-    async () => [await import("https://cdn.jsdelivr.net/npm/genlayer-js/+esm"), await import("https://cdn.jsdelivr.net/npm/genlayer-js/chains/+esm")],
   ];
   let last;
   for (const t of tries) { try { return await t(); } catch (e) { last = e; } }
@@ -191,7 +192,17 @@ async function send(label, functionName, args, note, probe) {
   try {
     const before = await read();
     logTx(id, head + line(null, "Signing and submitting…"));
-    const hash = await client.writeContract({ address: addr(), functionName, args, value: 0n });
+    // Studio v0.123 requires a fee on every write: estimate it, then send it with the transaction.
+    let fees;
+    if (typeof client.estimateTransactionFeesForWrite === "function") {
+      try {
+        const est = await client.estimateTransactionFeesForWrite({ address: addr(), functionName, args, value: 0n });
+        fees = { distribution: est.distribution, feeValue: est.feeValue };
+      } catch (e) {
+        logTx(id, head + line(null, "Could not estimate the fee, trying without one…"));
+      }
+    }
+    const hash = await client.writeContract({ address: addr(), functionName, args, value: 0n, ...(fees ? { fees } : {}) });
     const h = `<span class="mono">${esc(hash)}</span>`;
     logTx(id, head + h + line(true, "Submitted") + line(null, note || "Waiting for validators to reach consensus…"));
     let rcpt;
